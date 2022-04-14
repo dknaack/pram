@@ -256,43 +256,43 @@ tokenize(struct buffer *buffer, struct token *token)
 	case '(': at++; token->type = PRAM_LPAREN; break;
 	case ')': at++; token->type = PRAM_RPAREN; break;
 	default:
-			  if (isalpha(*at)) {
-				  token->type = PRAM_IDENTIFIER;
-				  char *start = at;
+		if (isalpha(*at)) {
+			token->type = PRAM_IDENTIFIER;
+			char *start = at;
 
-				  do {
-					  at++;
-				  } while (*at && isalpha(*at));
+			do {
+				at++;
+			} while (*at && isalpha(*at));
 
-				  if (*at == '*') {
-					  at++;
-				  }
+			if (*at == '*') {
+				at++;
+			}
 
-				  token->length = at - start;
-				  token->string = malloc(token->length + 1);
-				  memcpy(token->string, start, token->length);
-				  token->string[token->length] = '\0';
+			token->length = at - start;
+			token->string = malloc(token->length + 1);
+			memcpy(token->string, start, token->length);
+			token->string[token->length] = '\0';
 
-				  for (u32 i = 0; i < LENGTH(keywords); i++) {
-					  if (strcmp(keywords[i].string, token->string) == 0) {
-						  free(token->string);
-						  token->type = keywords[i].type;
-						  break;
-					  }
-				  }
-			  } else if (isdigit(*at)) {
-				  token->type = PRAM_NUMBER;
-				  token->number = 0;
+			for (u32 i = 0; i < LENGTH(keywords); i++) {
+				if (strcmp(keywords[i].string, token->string) == 0) {
+					free(token->string);
+					token->type = keywords[i].type;
+					break;
+				}
+			}
+		} else if (isdigit(*at)) {
+			token->type = PRAM_NUMBER;
+			token->number = 0;
 
-				  do {
-					  token->number *= 10;
-					  token->number += *at++ - '0';
-				  } while (*at && isdigit(*at));
-			  } else {
-				  fprintf(stderr, "Invalid token\n");
-			  }
+			do {
+				token->number *= 10;
+				token->number += *at++ - '0';
+			} while (*at && isdigit(*at));
+		} else {
+			fprintf(stderr, "Invalid token\n");
+		}
 
-			  break;
+		break;
 	}
 
 	buffer->start = at - buffer->data;
