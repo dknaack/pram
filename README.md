@@ -57,7 +57,7 @@ working registers and `P` is the program counter.
 	sub x        R[i] = R[i] - R[x]
 	div x        R[i] = R[i] / x
 	jmp x        P = x
-	jiz          if (R[i] == 0) P = x
-	jip          if (R[i] > 0) P = x
+	jiz x        if (R[i] == 0) P = x
+	jip x        if (R[i] > 0) P = x
 
 [parallel random access machine]: https://en.wikipedia.org/wiki/Parallel_RAM
