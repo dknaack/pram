@@ -601,6 +601,39 @@ print_memory(struct pram_memory *memory)
 	putchar('\n');
 }
 
+static void
+memory_init(struct pram_memory *memory, const char *input_path)
+{
+	if (input_path) {
+		printf("Reading input file...\n");
+
+		FILE *input = fopen(input_path, "r");
+		if (!input) {
+			die("Failed to open input file");
+		}
+
+		fscanf(input, "%u", &memory->input_count);
+		if (!memory->inputs) {
+			memory->inputs = ecalloc(memory->input_count, sizeof(*memory->inputs));
+		}
+		for (int i = 0; i < memory->input_count; i++) {
+			fscanf(input, "%d", &memory->inputs[i]);
+		}
+
+		fclose(input);
+	} else if (!memory->inputs) {
+		memory->inputs = ecalloc(memory->input_count, sizeof(*memory->inputs));
+	} else {
+		memset(memory->inputs, 0, memory->input_count * sizeof(*memory->inputs));
+	}
+
+	if (!memory->registers) {
+		memory->registers = ecalloc(memory->register_count, sizeof(*memory->registers));
+	}
+
+	memset(memory->registers, 0, memory->register_count * sizeof(*memory->registers));
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -657,26 +690,12 @@ main(int argc, char *argv[])
 		}
 	}
 
-	/* read in the inputs or allocate memory for the input registers */
-	if (input_path) {
-		printf("Reading input file...\n");
-
-		FILE *input = fopen(input_path, "r");
-		if (!input) {
-			die("Failed to open input file");
-		}
-
-		fscanf(input, "%u", &memory.input_count);
-		memory.inputs = ecalloc(memory.input_count, sizeof(*memory.inputs));
-		for (int i = 0; i < memory.input_count; i++) {
-			fscanf(input, "%d", &memory.inputs[i]);
-		}
-
-		fclose(input);
-	} else {
-		memory.inputs = ecalloc(memory.input_count, sizeof(*memory.inputs));
+	if (memory.input_count == 0) {
+		fprintf(stderr, "Invalid number of inputs\n");
+		return 1;
 	}
 
+	memory_init(&memory, input_path);
 	if (program.machine_count == 0) {
 		program.machine_count = memory.input_count;
 	}
@@ -685,18 +704,12 @@ main(int argc, char *argv[])
 		memory.register_count = memory.input_count;
 	}
 
-	if (memory.input_count == 0) {
-		fprintf(stderr, "Invalid number of inputs\n");
-		return 1;
-	}
-
 	if (memory.register_count < program.machine_count) {
 		fprintf(stderr, "Invalid number of registers: %d < %d\n",
 			memory.register_count, program.machine_count);
 		goto error_invalid_register_count;
 	}
 
-	memory.registers = ecalloc(memory.register_count, sizeof(*memory.registers));
 	program.counters = ecalloc(program.machine_count, sizeof(*program.counters));
 
 	/* read in the assembler code */
@@ -758,6 +771,8 @@ main(int argc, char *argv[])
 		} else if (strcmp(command, "reset") == 0) {
 			usize size = program.machine_count * sizeof(*program.counters);
 			memset(program.counters, 0, size);
+			memory_init(&memory, input_path);
+			print_memory(&memory);
 		} else if (strcmp(command, "exit") == 0) {
 			break;
 		} else if (strcmp(command, "help") == 0) {
