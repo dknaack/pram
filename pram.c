@@ -86,6 +86,7 @@ struct pram_memory {
 };
 
 enum pram_expression_type {
+	PRAM_EXPR_NONE,
 	PRAM_EXPR_MACHINE_COUNT,
 	PRAM_EXPR_MACHINE_INDEX,
 	PRAM_EXPR_VARIABLE,
@@ -678,6 +679,8 @@ expression_eval(struct pram_expression *expression, u32 machine_index,
 	i32 lhs, rhs;
 
 	switch (expression->type) {
+	case PRAM_EXPR_NONE:
+		return 0;
 	case PRAM_EXPR_ADD:
 		lhs = expression_eval(expression->lhs, machine_index, machine_count);
 		rhs = expression_eval(expression->rhs, machine_index, machine_count);
