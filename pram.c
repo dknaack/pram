@@ -38,6 +38,7 @@ enum token_type {
 	PRAM_RPAREN,
 	PRAM_NUMBER,
 	PRAM_IDENTIFIER,
+	// NOTE: Only instructions should follow.
 	PRAM_GET,
 	PRAM_SET,
 	PRAM_MOV,
@@ -310,13 +311,13 @@ parser_location(struct parser *parser, u32 *out_line, u32 *out_column)
 	assert(start <= parser->buffer.size);
 
 	u32 line = 1;
-	u32 column = 0;
+	u32 column = 1;
 	while (start-- > 0) {
 		column++;
 
 		if (at[0] == '\n') {
 			line++;
-			column = 0;
+			column = 1;
 		}
 
 		at++;
@@ -355,7 +356,7 @@ accept(struct parser *parser, enum token_type type)
 		parser->is_initialized = true;
 	}
 
-	if (parser->token.type == type) {
+	if (parser->error || parser->token.type == type) {
 		tokenize(&parser->buffer, &parser->token);
 		return true;
 	} else {
@@ -491,14 +492,25 @@ parse_expression(struct parser *parser, struct pram_expression *expr)
 }
 
 static bool
+is_instruction(u32 token_type)
+{
+	return token_type >= PRAM_FIRST_INSTRUCTION;
+}
+
+static bool
 parse_program(struct parser *parser, struct pram_program *program)
 {
-	if (accept(parser, PRAM_EOF)) {
+	if (!is_instruction(parser->token.type)) {
 		return false;
 	}
 
-	while (parser->token.type >= PRAM_FIRST_INSTRUCTION) {
+	while (!accept(parser, PRAM_EOF)) {
 		u32 opcode = parser->token.type;
+		if (!is_instruction(opcode)) {
+			parser_error(parser, "Expected instruction.");
+			opcode = PRAM_GET;
+		}
+
 		accept(parser, opcode);
 
 		struct pram_expression expr;
@@ -511,6 +523,21 @@ parse_program(struct parser *parser, struct pram_program *program)
 	}
 
 	return true;
+}
+
+static bool
+parse(struct parser *parser, struct pram_program *program)
+{
+	if (!parser->is_initialized) {
+		tokenize(&parser->buffer, &parser->token);
+		parser->is_initialized = true;
+	}
+
+	if (!parse_program(parser, program)) {
+		parser_error(parser, "Expected at least one instruction or label.");
+	}
+
+	return !parser->error;
 }
 
 static i32
@@ -768,7 +795,7 @@ main(int argc, char *argv[])
 	}
 
 	/* parse the instructions from the code */
-	if (!parse_program(&parser, &program) || parser.error) {
+	if (!parse(&parser, &program)) {
 		fprintf(stderr, "Failed to parse the program\n");
 		goto error_parse;
 	}
