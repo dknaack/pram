@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <ctype.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -71,6 +72,7 @@ struct parser {
 	struct buffer buffer;
 
 	bool is_initialized;
+	u32 error;
 	u32 machine_count;
 };
 
@@ -299,6 +301,52 @@ tokenize(struct buffer *buffer, struct token *token)
 	return true;
 }
 
+static void
+parser_location(struct parser *parser, u32 *out_line, u32 *out_column)
+{
+	char *at = parser->buffer.data;
+	u32 start = parser->token.start;
+
+	assert(start <= parser->buffer.size);
+
+	u32 line = 1;
+	u32 column = 0;
+	while (start-- > 0) {
+		column++;
+
+		if (at[0] == '\n') {
+			line++;
+			column = 0;
+		}
+
+		at++;
+	}
+
+	*out_line = line;
+	*out_column = column;
+}
+
+static void
+parser_verror(struct parser *parser, const char *fmt, va_list ap)
+{
+	u32 line, column;
+	parser_location(parser, &line, &column);
+	fprintf(stderr, "error:%d:%d: ", line, column);
+	vfprintf(stderr, fmt, ap);
+	fputc('\n', stderr);
+
+	parser->error = 1;
+}
+
+static void
+parser_error(struct parser *parser, const char *fmt, ...)
+{
+	va_list ap;
+	va_start(ap, fmt);
+	parser_verror(parser, fmt, ap);
+	va_end(ap);
+}
+
 static bool
 accept(struct parser *parser, enum token_type type)
 {
@@ -319,7 +367,8 @@ static void
 expect(struct parser *parser, enum token_type type)
 {
 	if (!accept(parser, type)) {
-		fprintf(stderr, "Unexpected token: %s\n", token_name[parser->token.type]);
+		parser_error(parser, "Unexpected token: %s",
+			token_name[parser->token.type]);
 	}
 }
 
@@ -368,7 +417,7 @@ parse_unary_expression(struct parser *parser, struct pram_expression *expr)
 		} else if (strcmp(string, "i") == 0) {
 			expr->type = PRAM_EXPR_MACHINE_INDEX;
 		} else {
-			fprintf(stderr, "Unknown variable '%s'\n", string);
+			parser_error(parser, "Unknown variable '%s'", string);
 		}
 
 		return true;
@@ -378,7 +427,7 @@ parse_unary_expression(struct parser *parser, struct pram_expression *expr)
 		return true;
 	} else if (accept(parser, PRAM_LPAREN)) {
 		if (!parse_expression(parser, expr)) {
-			fprintf(stderr, "Expected expression\n");
+			parser_error(parser, "Expected expression");
 		}
 
 		expect(parser, PRAM_RPAREN);
@@ -405,7 +454,7 @@ parse_term(struct parser *parser, struct pram_expression *expr)
 		memcpy(lhs, expr, sizeof(*lhs));
 
 		if (!parse_unary_expression(parser, rhs)) {
-			fprintf(stderr, "Expected unary expression after '*'\n");
+			parser_error(parser, "Expected unary expression after '*'");
 		}
 
 		expr->type = PRAM_EXPR_MUL;
@@ -430,7 +479,7 @@ parse_expression(struct parser *parser, struct pram_expression *expr)
 		memcpy(lhs, expr, sizeof(*lhs));
 
 		if (!parse_term(parser, rhs)) {
-			fprintf(stderr, "Expected term after '+'\n");
+			parser_error(parser, "Expected term after '+'");
 		}
 
 		expr->type = PRAM_EXPR_ADD;
@@ -454,7 +503,7 @@ parse_program(struct parser *parser, struct pram_program *program)
 
 		struct pram_expression expr;
 		if (!parse_expression(parser, &expr)) {
-			fprintf(stderr, "Expected expression\n");
+			parser_error(parser, "Expected expression.");
 			return true;
 		}
 
@@ -719,7 +768,7 @@ main(int argc, char *argv[])
 	}
 
 	/* parse the instructions from the code */
-	if (!parse_program(&parser, &program)) {
+	if (!parse_program(&parser, &program) || parser.error) {
 		fprintf(stderr, "Failed to parse the program\n");
 		goto error_parse;
 	}
