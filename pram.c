@@ -34,6 +34,7 @@ enum token_type {
 	PRAM_EOF,
 	PRAM_PLUS,
 	PRAM_STAR,
+	PRAM_COLON,
 	PRAM_LPAREN,
 	PRAM_RPAREN,
 	PRAM_NUMBER,
@@ -87,6 +88,7 @@ struct pram_memory {
 enum pram_expression_type {
 	PRAM_EXPR_MACHINE_COUNT,
 	PRAM_EXPR_MACHINE_INDEX,
+	PRAM_EXPR_VARIABLE,
 	PRAM_EXPR_NUMBER,
 	PRAM_EXPR_ADD,
 	PRAM_EXPR_MUL,
@@ -123,6 +125,7 @@ static const char *token_name[] = {
 	[PRAM_EOF] = "EOF",
 	[PRAM_PLUS] = "+",
 	[PRAM_STAR] = "*",
+	[PRAM_COLON] = ":",
 	[PRAM_NUMBER] = "number",
 	[PRAM_IDENTIFIER] = "identifier",
 	[PRAM_NOP] = "nop",
@@ -257,6 +260,7 @@ tokenize(struct buffer *buffer, struct token *token)
 	switch (*at) {
 	case '+': at++; token->type = PRAM_PLUS;   break;
 	case '*': at++; token->type = PRAM_STAR;   break;
+	case ':': at++; token->type = PRAM_COLON;  break;
 	case '(': at++; token->type = PRAM_LPAREN; break;
 	case ')': at++; token->type = PRAM_RPAREN; break;
 	default:
@@ -453,14 +457,30 @@ accept_identifier(struct parser *parser, const char *identifier)
 }
 
 static bool
+parse_identifier(struct parser *parser, char **identifier)
+{
+	if (parser->token.type == PRAM_IDENTIFIER) {
+		*identifier = parser->token.string;
+		accept(parser, PRAM_IDENTIFIER);
+		return true;
+	} else {
+		return false;
+	}
+}
+
+static bool
 parse_unary_expression(struct parser *parser, struct pram_expression *expr)
 {
 	i32 number = parser->token.number;
+	char *variable = 0;
 
 	if (accept_identifier(parser, "n")) {
 		expr->type = PRAM_EXPR_MACHINE_COUNT;
 	} else if (accept_identifier(parser, "i")) {
 		expr->type = PRAM_EXPR_MACHINE_INDEX;
+	} else if (parse_identifier(parser, &variable)) {
+		expr->type = PRAM_EXPR_VARIABLE;
+		expr->variable = variable;
 	} else if (accept(parser, PRAM_NUMBER)) {
 		expr->type = PRAM_EXPR_NUMBER;
 		expr->number = number;
@@ -538,29 +558,98 @@ is_instruction(u32 token_type)
 }
 
 static bool
-parse_program(struct parser *parser, struct pram_program *program)
+parse_instruction(struct parser *parser, struct pram_program *program)
 {
-	if (!is_instruction(parser->token.type)) {
+	u32 opcode = parser->token.type;
+	if (!is_instruction(opcode)) {
 		return false;
 	}
 
-	while (!accept(parser, PRAM_EOF)) {
-		u32 opcode = parser->token.type;
-		if (!is_instruction(opcode)) {
-			parser_error(parser, "Expected instruction.");
-			opcode = PRAM_GET;
-		}
+	accept(parser, opcode);
 
-		accept(parser, opcode);
-
-		struct pram_expression expr;
-		if (!parse_expression(parser, &expr)) {
-			parser_error(parser, "Expected expression.");
-			return true;
-		}
-
-		program_write_instruction(program, opcode, &expr);
+	struct pram_expression expr;
+	if (!parse_expression(parser, &expr)) {
+		parser_error(parser, "Expected expression.");
+		return true;
 	}
+
+	program_write_instruction(program, opcode, &expr);
+	return true;
+}
+
+static bool
+parse_label(struct parser *parser, char **label)
+{
+	if (!parse_identifier(parser, label)) {
+		return false;
+	}
+
+	expect(parser, PRAM_COLON);
+	return true;
+}
+
+static bool
+parse_program(struct parser *parser, struct pram_program *program)
+{
+	char **label_names = 0;
+	u32 *label_addresses = 0;
+	u32 label_count = 0;
+	u32 label_size = 1024;
+
+	if (accept(parser, PRAM_EOF)) {
+		return false;
+	}
+
+	label_names = ecalloc(label_size, sizeof(char *));
+	label_addresses = ecalloc(label_size, sizeof(u32));
+	assert(label_names && label_addresses);
+
+	u32 instruction_count = 0;
+	u32 *address = label_addresses;
+	char **label_name = label_names;
+	while (!parser->error && !accept(parser, PRAM_EOF)) {
+		if (parse_instruction(parser, program)) {
+			instruction_count++;
+		} else if (parse_label(parser, label_name)) {
+			*address++ = instruction_count;
+			label_count++;
+			label_name++;
+		} else {
+			parser_error(parser, "Expected instruction or label.");
+		}
+
+		if (label_count >= label_size) {
+			label_size *= 2;
+
+			label_names = realloc(label_names, label_size * sizeof(char *));
+			label_addresses = realloc(label_addresses, label_size * sizeof(u32));
+			assert(label_names && label_addresses);
+		}
+	}
+
+	struct pram_instruction *instruction = program->instructions;
+	while (instruction_count-- > 0) {
+		if (instruction->arg.type == PRAM_EXPR_VARIABLE) {
+			for (u32 i = 0; i < label_count; i++) {
+				if (strcmp(instruction->arg.variable, label_names[i]) == 0) {
+					instruction->arg.type = PRAM_EXPR_NUMBER;
+					instruction->arg.number = label_addresses[i];
+					break;
+				}
+			}
+
+			if (instruction->arg.type == PRAM_EXPR_VARIABLE) {
+				fprintf(stderr, "error: label '%s' is not defined.\n",
+					instruction->arg.variable);
+				parser->error = 1;
+			}
+		}
+
+		instruction++;
+	}
+
+	free(label_names);
+	free(label_addresses);
 
 	return true;
 }
