@@ -58,12 +58,10 @@ enum token_type {
 struct token {
 	enum token_type type;
 	u32 start;
+	u32 length;
 
 	union {
-		struct {
-			char *string;
-			u32 length;
-		};
+		char *string;
 		i32 number;
 	};
 };
@@ -299,6 +297,7 @@ tokenize(struct buffer *buffer, struct token *token)
 	}
 
 	buffer->start = at - buffer->data;
+	token->length = buffer->start - token->start;
 	return true;
 }
 
@@ -330,11 +329,43 @@ parser_location(struct parser *parser, u32 *out_line, u32 *out_column)
 static void
 parser_verror(struct parser *parser, const char *fmt, va_list ap)
 {
+	u32 start = parser->token.start;
 	u32 line, column;
 	parser_location(parser, &line, &column);
+
+	char *at = parser->buffer.data + parser->buffer.start;
+	u32 line_length = 0;
+	while (*at && *at != '\n') {
+		line_length++;
+		at++;
+	}
+
+	line_length += column - 1;
+
+	va_list tmp;
+	va_copy(tmp, ap);
 	fprintf(stderr, "error:%d:%d: ", line, column);
-	vfprintf(stderr, fmt, ap);
+	vfprintf(stderr, fmt, tmp);
 	fputc('\n', stderr);
+
+	char *line_string = parser->buffer.data + start - column + 1;
+	fprintf(stderr, "\n"
+		"     |\n"
+		 "%4d | %.*s\n"
+		"     |", line, line_length, line_string);
+
+	while (column-- > 0) {
+		fputc(' ', stderr);
+	}
+
+	u32 length = parser->token.length;
+	while (length-- > 0) {
+		fputc('^', stderr);
+	}
+
+	fputc(' ', stderr);
+	vfprintf(stderr, fmt, ap);
+	fputs("\n\n", stderr);
 
 	parser->error = 1;
 }
@@ -422,7 +453,6 @@ static bool
 parse_unary_expression(struct parser *parser, struct pram_expression *expr)
 {
 	i32 number = parser->token.number;
-	char *string = parser->token.string;
 
 	if (accept_identifier(parser, "n")) {
 		expr->type = PRAM_EXPR_MACHINE_COUNT;
