@@ -407,21 +407,27 @@ program_write_instruction(struct pram_program *program, u32 opcode,
 static bool parse_expression(struct parser *parser, struct pram_expression *expr);
 
 static bool
+accept_identifier(struct parser *parser, const char *identifier)
+{
+	if (parser->token.type == PRAM_IDENTIFIER &&
+			strcmp(parser->token.string, identifier) == 0) {
+		accept(parser, PRAM_IDENTIFIER);
+		return true;
+	} else {
+		return false;
+	}
+}
+
+static bool
 parse_unary_expression(struct parser *parser, struct pram_expression *expr)
 {
 	i32 number = parser->token.number;
 	char *string = parser->token.string;
 
-	if (accept(parser, PRAM_IDENTIFIER)) {
-		if (strcmp(string, "n") == 0) {
-			expr->type = PRAM_EXPR_MACHINE_COUNT;
-		} else if (strcmp(string, "i") == 0) {
-			expr->type = PRAM_EXPR_MACHINE_INDEX;
-		} else {
-			parser_error(parser, "Unknown variable '%s'", string);
-		}
-
-		return true;
+	if (accept_identifier(parser, "n")) {
+		expr->type = PRAM_EXPR_MACHINE_COUNT;
+	} else if (accept_identifier(parser, "i")) {
+		expr->type = PRAM_EXPR_MACHINE_INDEX;
 	} else if (accept(parser, PRAM_NUMBER)) {
 		expr->type = PRAM_EXPR_NUMBER;
 		expr->number = number;
@@ -432,10 +438,11 @@ parse_unary_expression(struct parser *parser, struct pram_expression *expr)
 		}
 
 		expect(parser, PRAM_RPAREN);
-		return true;
 	} else {
 		return false;
 	}
+
+	return true;
 }
 
 static bool
