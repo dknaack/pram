@@ -16,7 +16,7 @@ Simply run the build script:
 
 	./build.sh
 
-This will build an binary called `pram` in the current working directory.
+This will build a binary called `pram` in the current working directory.
 
 ## Usage
 
@@ -27,9 +27,9 @@ input registers followed by the input values. You can see the rest of the
 options by running the program without any arguments.
 
 After the program starts, you can see the available commands by typing `help`.
-In the command line, you don't need to type the command twice. You can simply
-leave it blank and hit enter. This will run the same command as before (similar
-to something like gdb).
+In the command line, you don't need to type the same command twice. You can
+simply leave it blank and hit enter. This will run the same command as before
+(similar to something like gdb).
 
 	./pram example.txt
 
