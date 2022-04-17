@@ -567,10 +567,12 @@ parse_instruction(struct parser *parser, struct pram_program *program)
 
 	accept(parser, opcode);
 
-	struct pram_expression expr;
-	if (!parse_expression(parser, &expr)) {
-		parser_error(parser, "Expected expression.");
-		return true;
+	struct pram_expression expr = {0};
+	bool requires_argument = opcode != PRAM_NOP;
+	if (requires_argument) {
+		if (!parse_expression(parser, &expr)) {
+			parser_error(parser, "Expected expression.");
+		}
 	}
 
 	program_write_instruction(program, opcode, &expr);
