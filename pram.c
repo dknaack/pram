@@ -39,6 +39,7 @@ enum token_type {
 	PRAM_NUMBER,
 	PRAM_IDENTIFIER,
 	// NOTE: Only instructions should follow.
+	PRAM_NOP,
 	PRAM_GET,
 	PRAM_SET,
 	PRAM_MOV,
@@ -52,7 +53,7 @@ enum token_type {
 	PRAM_JIZ,
 	PRAM_JIP,
 
-	PRAM_FIRST_INSTRUCTION = PRAM_GET,
+	PRAM_FIRST_INSTRUCTION = PRAM_NOP,
 };
 
 struct token {
@@ -124,6 +125,7 @@ static const char *token_name[] = {
 	[PRAM_STAR] = "*",
 	[PRAM_NUMBER] = "number",
 	[PRAM_IDENTIFIER] = "identifier",
+	[PRAM_NOP] = "nop",
 	[PRAM_GET] = "get",
 	[PRAM_SET] = "set",
 	[PRAM_MOV] = "mov",
@@ -218,6 +220,7 @@ tokenize(struct buffer *buffer, struct token *token)
 		char *string;
 		u32 type;
 	} keywords[] = {
+		{ "nop",  PRAM_NOP, },
 		{ "get",  PRAM_GET, },
 		{ "set",  PRAM_SET, },
 		{ "mov",  PRAM_MOV, },
