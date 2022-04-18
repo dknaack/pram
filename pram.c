@@ -21,6 +21,7 @@ typedef int8_t  i8;
 typedef double f64;
 typedef float  f32;
 
+#define BETWEEN(x, min, max) ((min) <= (x) && (x) < (max))
 #define LENGTH(x) (sizeof(x)/sizeof(*(x)))
 #define MAX(a, b) ((a) > (b)? (a) : (b))
 
@@ -706,51 +707,78 @@ instruction_execute(struct pram_instruction *instruction,
 	struct pram_memory *memory, u32 machine_index, u32 machine_count,
 	u32 *counter)
 {
-	i32 *inputs = memory->inputs;
-	i32 *registers = memory->registers;
-	i32 *accumulator = &registers[machine_index];
+	i32 *input = memory->inputs;
+	i32 *reg = memory->registers;
+	i32 *acc = &reg[machine_index];
+
+	u32 register_count = memory->register_count;
+	u32 input_count = memory->input_count;
 
 	i32 x = expression_eval(&instruction->arg, machine_index, machine_count);
 
 	// TODO: bounds checking on x.
 	switch (instruction->opcode) {
 	case PRAM_GET:
-		*accumulator = inputs[registers[x]];
+		if (BETWEEN(x, 0, register_count) && BETWEEN(reg[x], 0, input_count)) {
+			*acc = input[reg[x]];
+		} else {
+			fprintf(stderr, "WARNING: Out of bounds access\n");
+		}
 		break;
 	case PRAM_SET:
-		*accumulator = x;
+		*acc = x;
 		break;
 	case PRAM_MOV:
-		*accumulator = registers[x];
+		*acc = reg[x];
 		break;
 	case PRAM_STR:
-		registers[x] = *accumulator;
+		if (BETWEEN(x, 0, register_count)) {
+			reg[x] = *acc;
+		} else {
+			fprintf(stderr, "WARNING: Out of bounds access\n");
+		}
 		break;
 	case PRAM_MOV_STAR:
-		*accumulator = registers[registers[x]];
+		if (BETWEEN(x, 0, register_count) && BETWEEN(reg[x], 0, register_count)) {
+			*acc = reg[reg[x]];
+		} else {
+			fprintf(stderr, "WARNING: Out of bounds access\n");
+		}
 		break;
 	case PRAM_STR_STAR:
-		registers[registers[x]] = *accumulator;
+		if (BETWEEN(x, 0, register_count) && BETWEEN(reg[x], 0, register_count)) {
+			reg[reg[x]] = *acc;
+		} else {
+			fprintf(stderr, "WARNING: Out of bounds access\n");
+		}
 		break;
 	case PRAM_ADD:
-		*accumulator += registers[x];
+		if (BETWEEN(x, 0, register_count)) {
+			*acc += reg[x];
+		} else {
+			fprintf(stderr, "WARNING: Out of bounds access\n");
+		}
 		break;
 	case PRAM_SUB:
-		*accumulator -= registers[x];
+		if (BETWEEN(x, 0, register_count)) {
+			*acc -= reg[x];
+		} else {
+			fprintf(stderr, "WARNING: Out of bounds access\n");
+		}
 		break;
 	case PRAM_DIV:
-		*accumulator /= x;
+		*acc /= x;
 		break;
 	case PRAM_JMP:
 		*counter = x;
 		break;
 	case PRAM_JIZ:
-		if (*accumulator == 0) {
+		if (*acc == 0) {
 			*counter = x;
 		}
 		break;
 	case PRAM_JIP:
-		if (*accumulator > 0) {
+		if (*acc > 0) {
 			*counter = x;
 		}
 		break;
