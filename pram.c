@@ -214,6 +214,10 @@ readline(const char *prompt)
 		line[len - 1] = '\0';
 		return line;
 	} else {
+		if (line) {
+			free(line);
+		}
+
 		return NULL;
 	}
 }
@@ -451,6 +455,7 @@ accept_identifier(struct parser *parser, const char *identifier)
 {
 	if (parser->token.type == PRAM_IDENTIFIER &&
 			strcmp(parser->token.string, identifier) == 0) {
+		free(parser->token.string);
 		accept(parser, PRAM_IDENTIFIER);
 		return true;
 	} else {
@@ -633,6 +638,8 @@ parse_program(struct parser *parser, struct pram_program *program)
 		if (instruction->arg.type == PRAM_EXPR_VARIABLE) {
 			for (u32 i = 0; i < label_count; i++) {
 				if (strcmp(instruction->arg.variable, label_names[i]) == 0) {
+					free(instruction->arg.variable);
+
 					instruction->arg.type = PRAM_EXPR_NUMBER;
 					instruction->arg.number = label_addresses[i];
 					break;
@@ -643,10 +650,17 @@ parse_program(struct parser *parser, struct pram_program *program)
 				fprintf(stderr, "error: label '%s' is not defined.\n",
 					instruction->arg.variable);
 				parser->error = 1;
+
+				free(instruction->arg.variable);
 			}
 		}
 
 		instruction++;
+	}
+
+	char **label = label_names;
+	while (label_count-- > 0) {
+		free(*label++);
 	}
 
 	free(label_names);
@@ -809,6 +823,39 @@ program_step(struct pram_program *program, struct pram_memory *memory)
 }
 
 static void
+expression_finish(struct pram_expression *expression)
+{
+	switch (expression->type) {
+	case PRAM_EXPR_ADD:
+	case PRAM_EXPR_MUL:
+		expression_finish(expression->lhs);
+		expression_finish(expression->rhs);
+		free(expression->lhs);
+		break;
+	case PRAM_EXPR_VARIABLE:
+		free(expression->variable);
+		break;
+	default:
+		break;
+	}
+}
+
+static void
+program_finish(struct pram_program *program)
+{
+	u32 instruction_count = program->instruction_count;
+	struct pram_instruction *instruction = program->instructions;
+
+	while (instruction_count-- > 0) {
+		expression_finish(&instruction->arg);
+		instruction++;
+	}
+
+	free(program->instructions);
+	free(program->counters);
+}
+
+static void
 print_memory(struct pram_memory *memory)
 {
 	u32 input_count = memory->input_count;
@@ -871,6 +918,13 @@ memory_init(struct pram_memory *memory, const char *input_path)
 	}
 
 	memset(memory->registers, 0, memory->register_count * sizeof(*memory->registers));
+}
+
+static void
+memory_finish(struct pram_memory *memory)
+{
+	free(memory->registers);
+	free(memory->inputs);
 }
 
 int
@@ -964,14 +1018,20 @@ main(int argc, char *argv[])
 	/* use the filename as the prompt */
 	char prompt[512];
 	char *command = 0;
-	char *prev_command = "";
+	char *next_command = 0;
 	snprintf(prompt, sizeof(prompt), "%s> ", code_path);
 
 	u32 global_counter = 0;
-	while ((command = readline(prompt))) {
+	while ((next_command = readline(prompt))) {
 		/* if an empty command was given then use the previous command */
-		if (strlen(command) == 0) {
-			command = prev_command;
+		if (strlen(next_command) != 0) {
+			if (command) {
+				free(command);
+			}
+
+			command = next_command;
+		} else {
+			free(next_command);
 		}
 
 		if (strcmp(command, "step") == 0) {
@@ -1019,15 +1079,16 @@ main(int argc, char *argv[])
 		} else {
 			printf("Unrecognized command\n");
 		}
+	}
 
-		prev_command = command;
+	if (command) {
+		free(command);
 	}
 
 	printf("exiting...\n");
 	free(parser.buffer.data);
-	free(program.counters);
-	free(memory.registers);
-	free(memory.inputs);
+	program_finish(&program);
+	memory_finish(&memory);
 
 	return 0;
 error_parse:
