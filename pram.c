@@ -508,11 +508,8 @@ parse_term(struct parser *parser, struct pram_expression *expr)
 	}
 
 	if (accept(parser, PRAM_STAR)) {
-		struct pram_expression *lhs;
-		struct pram_expression *rhs;
-
-		lhs = ecalloc(2, sizeof(*lhs));
-		rhs = lhs + 1;
+		struct pram_expression *lhs = ecalloc(2, sizeof(*lhs));
+		struct pram_expression *rhs = lhs + 1;
 
 		memcpy(lhs, expr, sizeof(*lhs));
 
@@ -866,6 +863,10 @@ memory_init(struct pram_memory *memory, const char *input_path)
 	}
 
 	if (!memory->registers) {
+		if (memory->register_count == 0) {
+			memory->register_count = memory->input_count;
+		}
+
 		memory->registers = ecalloc(memory->register_count, sizeof(*memory->registers));
 	}
 
@@ -936,10 +937,6 @@ main(int argc, char *argv[])
 	memory_init(&memory, input_path);
 	if (program.machine_count == 0) {
 		program.machine_count = memory.input_count;
-	}
-
-	if (memory.register_count == 0) {
-		memory.register_count = memory.input_count;
 	}
 
 	if (memory.register_count < program.machine_count) {
