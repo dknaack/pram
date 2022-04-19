@@ -990,7 +990,7 @@ main(int argc, char *argv[])
 
 	memory_init(&memory, input_path);
 	if (program.machine_count == 0) {
-		program.machine_count = memory.input_count;
+		program.machine_count = 1;
 	}
 
 	if (memory.register_count < program.machine_count) {
