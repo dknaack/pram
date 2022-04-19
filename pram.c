@@ -884,6 +884,56 @@ print_memory(struct pram_memory *memory)
 }
 
 static void
+print_expression(struct pram_expression *expr)
+{
+	switch (expr->type) {
+	case PRAM_EXPR_NONE:
+		break;
+	case PRAM_EXPR_MACHINE_COUNT:
+		printf("n");
+		break;
+	case PRAM_EXPR_MACHINE_INDEX:
+		printf("i");
+		break;
+	case PRAM_EXPR_VARIABLE:
+		printf("%s", expr->variable);
+		break;
+	case PRAM_EXPR_NUMBER:
+		printf("%d", expr->number);
+		break;
+	case PRAM_EXPR_ADD:
+		printf("(");
+		print_expression(expr->lhs);
+		printf(" + ");
+		print_expression(expr->rhs);
+		printf(")");
+		break;
+	case PRAM_EXPR_MUL:
+		printf("(");
+		print_expression(expr->lhs);
+		printf(" * ");
+		print_expression(expr->rhs);
+		printf(")");
+		break;
+	}
+}
+
+static void
+print_program(struct pram_program *program)
+{
+	struct pram_instruction *instruction = program->instructions;
+	u32 instruction_count = program->instruction_count;
+
+	for (u32 i = 0; i < instruction_count; i++) {
+		printf("%4d: %s ", i, token_name[instruction->opcode]);
+		print_expression(&instruction->arg);
+		putchar('\n');
+
+		instruction++;
+	}
+}
+
+static void
 memory_init(struct pram_memory *memory, const char *input_path)
 {
 	if (input_path) {
