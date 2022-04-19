@@ -512,7 +512,7 @@ parse_term(struct parser *parser, struct pram_expression *expr)
 		return false;
 	}
 
-	if (accept(parser, PRAM_STAR)) {
+	while (accept(parser, PRAM_STAR)) {
 		struct pram_expression *lhs = ecalloc(2, sizeof(*lhs));
 		struct pram_expression *rhs = lhs + 1;
 
@@ -537,7 +537,7 @@ parse_expression(struct parser *parser, struct pram_expression *expr)
 		return false;
 	}
 
-	if (accept(parser, PRAM_PLUS)) {
+	while (accept(parser, PRAM_PLUS)) {
 		struct pram_expression *lhs = ecalloc(2, sizeof(*lhs));
 		struct pram_expression *rhs = lhs + 1;
 
