@@ -927,6 +927,44 @@ memory_finish(struct pram_memory *memory)
 	free(memory->inputs);
 }
 
+/*
+ * NOTE: only checks if the bytes of the substring match the string, but not
+ * if the string and the substring are of the same length
+ */
+static bool
+string_equals(char *string, u32 string_length, char *substring)
+{
+	while (*substring && string_length-- > 0) {
+		if (*string++ != *substring++) {
+			return false;
+		}
+	}
+
+	return string_length == 0;
+}
+
+static bool
+string_split(char **string, char **out_start, u32 *out_length)
+{
+	char *at = *string;
+	u32 length = 0;
+
+	while (isspace(at[0])) {
+		at++;
+	}
+
+	*out_start = at;
+
+	while (at[0] && !isspace(at[0])) {
+		length++;
+		at++;
+	}
+
+	*out_length = length;
+	*string = at;
+	return at[0] != '\0';
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -1013,28 +1051,34 @@ main(int argc, char *argv[])
 		goto error_parse;
 	}
 
+	print_program(&program);
 	print_memory(&memory);
 
 	/* use the filename as the prompt */
 	char prompt[512];
-	char *command = 0;
-	char *next_command = 0;
+	char *line = 0;
+	char *next_line = 0;
 	snprintf(prompt, sizeof(prompt), "%s> ", code_path);
 
 	u32 global_counter = 0;
-	while ((next_command = readline(prompt))) {
+	while ((next_line = readline(prompt))) {
 		/* if an empty command was given then use the previous command */
-		if (strlen(next_command) != 0) {
-			if (command) {
-				free(command);
+		if (strlen(next_line) != 0) {
+			if (line) {
+				free(line);
 			}
 
-			command = next_command;
+			line = next_line;
 		} else {
-			free(next_command);
+			free(next_line);
 		}
 
-		if (strcmp(command, "step") == 0) {
+		char *iter = line;
+		char *command = 0;
+		u32 command_length = 0;
+		string_split(&iter, &command, &command_length);
+
+		if (string_equals(command, command_length, "step")) {
 			/* print the executed instructions of each machine */
 			u32 machine_count = program.machine_count;
 			for (u32 i = 0; i < machine_count; i++) {
@@ -1061,28 +1105,60 @@ main(int argc, char *argv[])
 			}
 
 			print_memory(&memory);
-		} else if (strcmp(command, "finish") == 0) {
+		} else if (string_equals(command, command_length, "finish")) {
 			while (program_step(&program, &memory)) {}
-		} else if (strcmp(command, "reset") == 0) {
+		} else if (string_equals(command, command_length, "reset")) {
 			usize size = program.machine_count * sizeof(*program.counters);
 			memset(program.counters, 0, size);
 			memory_init(&memory, input_path);
 			print_memory(&memory);
-		} else if (strcmp(command, "exit") == 0) {
+		} else if (string_equals(command, command_length, "exit")) {
 			break;
-		} else if (strcmp(command, "help") == 0) {
+		} else if (string_equals(command, command_length, "help")) {
 			printf("\nCOMMANDS\n"
 				"- step    Execute one instruction per machine\n"
 				"- finish  Execute program until all machines terminate\n"
 				"- reset   Reset the registers and program counters\n"
 				"- exit    Exit the program\n\n");
+		} else if (string_equals(command, command_length, "seti")) {
+			char *endptr = 0;
+			u32 input = strtoul(iter, &endptr, 10);
+			i32 value = 0;
+			if (iter != endptr) {
+				iter = endptr;
+				value = strtol(iter, &endptr, 10);
+			}
+
+			if (iter != endptr && input < memory.input_count) {
+				printf("R[%u] = %d\n", input, value);
+				memory.inputs[input] = value;
+				print_memory(&memory);
+			} else {
+				printf("Invalid arguments\n");
+			}
+		} else if (string_equals(command, command_length, "set")) {
+			char *endptr = 0;
+			u32 reg = strtoul(iter, &endptr, 10);
+			i32 value = 0;
+			if (iter != endptr) {
+				iter = endptr;
+				value = strtol(iter, &endptr, 10);
+			}
+
+			if (iter != endptr && reg < memory.register_count) {
+				printf("R[%u] = %d\n", reg, value);
+				memory.registers[reg] = value;
+				print_memory(&memory);
+			} else {
+				printf("Invalid arguments\n");
+			}
 		} else {
 			printf("Unrecognized command\n");
 		}
 	}
 
-	if (command) {
-		free(command);
+	if (line) {
+		free(line);
 	}
 
 	printf("exiting...\n");
