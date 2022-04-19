@@ -278,10 +278,6 @@ tokenize(struct buffer *buffer, struct token *token)
 				at++;
 			} while (*at && isalpha(*at));
 
-			if (*at == '*') {
-				at++;
-			}
-
 			token->length = at - start;
 			token->string = malloc(token->length + 1);
 			memcpy(token->string, start, token->length);
@@ -293,6 +289,13 @@ tokenize(struct buffer *buffer, struct token *token)
 					token->type = keywords[i].type;
 					break;
 				}
+			}
+
+			bool is_mov_or_str_instruction = token->type == PRAM_MOV ||
+				token->type == PRAM_STR;
+			if (is_mov_or_str_instruction && *at == '*') {
+				token->type += 2;
+				at++;
 			}
 		} else if (isdigit(*at)) {
 			token->type = PRAM_NUMBER;
