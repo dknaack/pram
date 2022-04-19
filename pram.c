@@ -1119,6 +1119,8 @@ main(int argc, char *argv[])
 				"- step    Execute one instruction per machine\n"
 				"- finish  Execute program until all machines terminate\n"
 				"- reset   Reset the registers and program counters\n"
+				"- set     Set a value of a register\n"
+				"- seti    Set a value of an input register\n"
 				"- exit    Exit the program\n\n");
 		} else if (string_equals(command, command_length, "seti")) {
 			char *endptr = 0;
